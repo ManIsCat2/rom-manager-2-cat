@@ -167,7 +167,7 @@ def ExportTexture(rom,GetNID,Excess,txt,pos,Trackers,refs,tdir,textures,ImgTypes
 			textures.write('#include "%s.inc.c"\n};\n'%(str(inc+(id+hex(t[1])+"_custom.%s%d"%(t[5].lower(),t[6])))))
 			#The palette
 			textures.write('ALIGNED8 '+texnp+' = {\n')
-			textures.write('#include "%s.pal.inc.c"\n};\n'%(str(inc+(id+hex(t[1])+"_custom.%s%d"%(t[5].lower(),t[6])))))
+			textures.write('#include "%s.inc.c"\n};\n'%(str(inc+(id+hex(t[1])+"_custom.%s%d"%(t[5].lower(),t[6])))))
 			#export a png
 			bin = rom[t[0]:t[0]+t[2]*2+2]
 			pal = [rom[t[7][0]:t[7][0]+(2**t[6])*2],'rgba16'] #A palette is 2^bitdepth of CI * two bytes per pixel
@@ -213,8 +213,8 @@ def ModelWrite(rom,ModelData,nameG,id,tdir,opt,level):
 	f.write('#include "%s"\n'%('custom.model.inc.h'))
 	#For editor levels, do not use on actors or RM unless explicitly told flagged
 	#depends on all data being in the same display list.
-	if opt:
-		Modeldata = OptimizeModeldata(ModelData)
+	#if opt:
+		#Modeldata = OptimizeModeldata(ModelData)
 	CheckFog = (lambda l,md,id: (l,'DL_{}'.format(id+hex(md[0][0][1]))) in Log.LastFog)
 	#Write vertices first so that they're all in a row in ram so vert scrolls work better
 	#Have to put all verts in same array, as individual display lists aren't in order
@@ -313,18 +313,9 @@ def ModelWrite(rom,ModelData,nameG,id,tdir,opt,level):
 		#because DLs can be completely non linear and even recursive
 		twice=[]
 		#this exists because I lose track of which DLs to skip
-		for s,d in zip(md[pos],md[1]):
-			if s in S:
-				q = S.index(s)
-				Eapp((id+hex(s[1])),(GetNID(pos,id,q)+hex(S[q][1])),'DL_%s')
-				twice.append(s)
-				continue
-			else:
-				S.append(s)
-				Trackers[pos].append(k)
-		for s,d in zip(md[pos],md[1]):
-			if s in twice:
-				continue
+		for s, d in zip(md[pos], md[1]):
+			S.append(s)
+			Trackers[pos].append(k)
 			DLn = 'Gfx DL_'+id+hex(s[1])+'[]'
 			f.write(DLn+' = {')
 			refs.append(DLn)
@@ -401,7 +392,7 @@ class F3D_decode():
 #give cmd as binary.
 #should return cmd as string, and args as tuple
 @lru_cache(maxsize=32) #will save lots of time with repeats of tri calls
-def Bin2C(cmd,id):
+def Bin2C(cmd,id,skipTLUT):
 	cmd = BitArray(cmd)
 	c = F3D_decode(cmd[0:8].uint)
 	V= c.func(cmd[8:],id)
@@ -420,9 +411,11 @@ def Bin2C(cmd,id):
 	if cmd[:8].uint==6:
 		if cmd[8:16].uint!=1:
 			q[0]='gsSPDisplayList'
+	if q[0] == 'gsDPLoadTLUTCmd' and skipTLUT:
+		q[0] = '//gsDPLoadTLUTCmd'
 	return [q[0]+ags,cmd]
 
-def DecodeVDL(rom,start,s,id,opt):
+def DecodeVDL(rom,start,s,id,opt,skipTLUT):
 	dl=[[]]
 	#needs (ptr,length)
 	verts=[]
@@ -439,14 +432,14 @@ def DecodeVDL(rom,start,s,id,opt):
 	gCycle = 1
 	global gFog
 	gFog = 0
-	return DecodeDL(rom,s,id,dl,verts,textureptrs,amb,diffuse,ranges,x,[start],LastMat,0,opt)
+	return DecodeDL(rom,s,id,dl,verts,textureptrs,amb,diffuse,ranges,x,[start],LastMat,0,opt,skipTLUT)
 
 #recursively get DLs
-def DecodeDL(rom,s,id,dl,verts,textureptrs,amb,diffuse,ranges,x,start,LastMat,dlStack,opt):
+def DecodeDL(rom,s,id,dl,verts,textureptrs,amb,diffuse,ranges,x,start,LastMat,dlStack,opt,skipTLUT):
 	global gFog
 	while(True):
 		cmd=rom[start[dlStack][0]+x:start[dlStack][0]+x+8]
-		cmd=Bin2C(cmd,id)
+		cmd=Bin2C(cmd,id,skipTLUT)
 		#check if cmd is not needed and can be skipped
 		MSB = cmd[1][:8].uint
 		tile = cmd[1][32:40].uint
@@ -474,7 +467,7 @@ def DecodeDL(rom,s,id,dl,verts,textureptrs,amb,diffuse,ranges,x,start,LastMat,dl
 			dl[dlStack].append(cmd[0])
 			dl.append([])
 			start.append([s.B2P(ptr),ptr])
-			(dl,verts,textureptrs,amb,diffuse,ranges,start, gFog) = DecodeDL(rom,s,id,dl,verts,textureptrs,amb,diffuse,ranges,0,start,LastMat,len(dl)-1,opt)
+			(dl,verts,textureptrs,amb,diffuse,ranges,start, gFog) = DecodeDL(rom,s,id,dl,verts,textureptrs,amb,diffuse,ranges,0,start,LastMat,len(dl)-1,opt,skipTLUT)
 			if cmd[1][8:16].uint==1:
 				break
 		#end dl

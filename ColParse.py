@@ -163,6 +163,13 @@ class ColDat():
 		area = (s*(s-sides[0])*(s-sides[1])*(s-sides[2]))**.5
 		return area
 	def MakeNewTris(self,NewV,offset):
+		try:
+			from pyhull.delaunay import DelaunayTri
+		except:
+			print("pyhull not installed, cannot triangulate potential bad tris\
+			may need to re import collision file via blender importer if missing\
+			triangles detected")
+			return
 		#use delaunay triangulation via module (would be faster than code I wrote anyway
 		#because its written as a C dll)
 		pts = [[v[0],v[2]] for v in NewV] #2d projection

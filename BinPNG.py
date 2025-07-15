@@ -24,15 +24,13 @@ def GetCHKSM(filename):
 	return c
 
 #file is bin, image is png
-#Alpha changed to true because N64 graphics does not like PNGS with no alpha YES!!!
-def I(width,height,depth,file,image):
-	if depth>4:
-		w = png.Writer(width,height,greyscale=True,bitdepth=depth,alpha=True)
-		rows = CreateIRows(width,height,depth//2,2,file)
-	else:
-		w = png.Writer(width,height,greyscale=True,bitdepth=8,alpha=True)
-		rows = EditIFile(file,width,height,[4,4],2,1)
-	w.write(image,rows)
+def I(width, height, depth, file, image):
+    if depth not in (4, 8):
+        raise ValueError("Unsupported depth for I texture: must be 4 or 8")
+
+    rows = CreateIRows(file, width, height, depth)
+    writer = png.Writer(width, height, greyscale=True, alpha=False, bitdepth=8)
+    writer.write(image, rows)
 
 def IA(width,height,depth,file,image):
 	if depth>4:
@@ -65,17 +63,24 @@ def CI(width,height,depth,p,file,image):
 	rows = CreateRows(width,height,depth,1,file)
 	w.write(image,rows)
 
-def CreateIRows(width,height,depth,Channels,file):
-	rows=[]
-	for r in range(height):
-		L=int((depth/8)*Channels*width)#bytes per row
-		bin = BitArray(file[L*r:L*r+L])
-		a=bin.unpack('%d*uint:%d'%(width*Channels,depth))
-		a = [b&0xFF for b in a]
-		AlphaAdd = [0xFF]*(len(a)*2)
-		AlphaAdd[0::2] = a
-		rows.append(AlphaAdd)
-	return rows
+def CreateIRows(file, width, height, depth):
+    rows = []
+    idx = 0
+    if depth == 4:
+        # each byte = 2 pixels
+        for y in range(height):
+            row = []
+            for x in range(width):
+                byte = file[idx // 2]
+                nibble = (byte >> 4) if (idx % 2 == 0) else (byte & 0xF)
+                row.append(nibble * 0x11)  # i4 -> i8
+                idx += 1
+            rows.append(row)
+    elif depth == 8:
+        for y in range(height):
+            start = y * width
+            rows.append([file[start + x] for x in range(width)])
+    return rows
 
 def CreateRows(width,height,depth,Channels,file):
 	rows=[]
@@ -107,21 +112,25 @@ def EditIFile(file,width,height,shifts,PpB,b):
 	return newfile
 	
 #change IA31 to IA88 or rgba5551 to rgba8888
-def EditFile(file,width,height,shifts,PpB,b):
-	newfile=[]
-	for x in range(height):
-		row=[]
-		for pixel in range(0,width//PpB):
-			pixel=pixel+x*width//PpB
-			bin=file[b*pixel:b*pixel+b]
-			bin=pack('>%dB'%b,*bin)
-			upack = ['uint:%d'%(8-a) if a!=8 else 'uint:1' for a in shifts]
-			channels=bin.unpack(','.join(upack))
-			channels=[CB(c,8-s) if s<8 else OBA(c) for c,s in zip(channels,shifts)]
-			p = struct.pack('>%dB'%len(channels),*channels)
-			row.extend(p)
-		newfile.append(row)
-	return newfile
+def EditFile(file, width, height, shifts, PpB, b):
+    newfile = []
+    for x in range(height):
+        row = []
+        for pixel in range(0, width // PpB):
+            try:
+                pixel = pixel + x * width // PpB
+                bin = file[b * pixel : b * pixel + b]
+                bin = pack('>%dB' % b, *bin)
+                upack = ['uint:%d' % (8 - a) if a != 8 else 'uint:1' for a in shifts]
+                channels = bin.unpack(','.join(upack))
+                channels = [CB(c, 8 - s) if s < 8 else OBA(c) for c, s in zip(channels, shifts)]
+                p = struct.pack('>%dB' % len(channels), *channels)
+                row.extend(p)
+            except Exception as e:
+                print(f'Failed at pixel {pixel} in row {x}: {e}')
+                row.extend([0] * len(shifts))  # default to black/transparent pixel
+        newfile.append(row)
+    return newfile
 
 #convert bits
 @lru_cache(maxsize=255)

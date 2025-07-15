@@ -58,7 +58,7 @@ class Script():
 		seg = self.banks[Bank]
 		if not seg:
 			print(hex(B),hex(Bank),self.banks[Bank-2:Bank+3])
-			raise ''
+			raise "Unkonwn Segment."
 		return seg[0]+offset
 	def L4B(self,T):
 		x=0
@@ -536,7 +536,7 @@ def PLC(rom,start):
 		return (cmd,len,args,start)
 	return PLC(rom,start)
 
-def WriteModel(rom,dls,s,name,Hname,id,tdir):
+def WriteModel(rom,dls,s,name,Hname,id,tdir,skipTLUT):
 	x=0
 	ModelData=[]
 	while(x<len(dls)):
@@ -547,7 +547,7 @@ def WriteModel(rom,dls,s,name,Hname,id,tdir):
 		if first==0x01010101 or not F3D.DecodeFmt.get(c):
 			return
 		try:
-			(dl,verts,textures,amb,diff,ranges,starts,fog)=F3D.DecodeVDL(rom,dls[x],s,id,1)
+			(dl,verts,textures,amb,diff,ranges,starts,fog)=F3D.DecodeVDL(rom,dls[x],s,id,1,skipTLUT)
 			if fog:
 				f = name.relative_to(Path(sys.path[0])) / 'custom.model.inc.c'
 				Log.LevelFog(str(f))
@@ -624,7 +624,10 @@ def LoadUnspecifiedModels(s,file,level):
 			#if you just use the map which has no distinction on which bank is loaded.
 			addr = "{:08x}".format(model[0])
 			if Seg==0x12:
-				lab = GD.__dict__[level].get((i,'0x'+addr))
+				try:
+					lab = GD.__dict__[level].get((i,'0x'+addr))
+				except:
+					lab=None
 				if not lab:
 					# print(addr,level,i)
 					lab = s.GetLabel(addr)
@@ -684,8 +687,8 @@ def WriteLevelScript(name,Lnum,s,level,Anum,envfx):
 	LoadLevel = DetLevelSpecBank(s,f)
 	if LoadLevel and LoadLevel!=Lnum:
 		f.write('#include "levels/%s/header.h"\n'%LoadLevel)
-	f.write('const LevelScript level_%s_custom_entry[] = {\n'%Lnum)
-	s.MakeDec('const LevelScript level_%s_custom_entry[]'%Lnum)
+	f.write('const LevelScript level_%s_entry[] = {\n'%Lnum)
+	s.MakeDec('const LevelScript level_%s_entry[]'%Lnum)
 	#entry stuff
 	f.write("INIT_LEVEL(),\n")
 	if LoadLevel:
@@ -883,7 +886,7 @@ def WriteVanillaLevel(rom,s,num,areas,rootdir,m64dir,AllWaterBoxes,Onlys,romname
 	[script.write(l) for l in Slines]
 	return [AllWaterBoxes,m64s,seqNums]
 
-def WriteLevel(rom,s,num,areas,rootdir,m64dir,AllWaterBoxes,Onlys,romname,m64s,seqNums,MusicExtend):
+def WriteLevel(rom,s,num,areas,rootdir,m64dir,AllWaterBoxes,Onlys,romname,m64s,seqNums,MusicExtend,skipTLUT):
 	#create level directory
 	WaterOnly = Onlys[0]
 	ObjectOnly = Onlys[1]
@@ -897,6 +900,7 @@ def WriteLevel(rom,s,num,areas,rootdir,m64dir,AllWaterBoxes,Onlys,romname,m64s,s
 	Areasdir.mkdir(exist_ok=True)
 	#create area directory for each area
 	envfx = 0
+	WriteLevelScript(level/"custom.script.c",name,s,s.levels[num],areas,envfx)
 	for a in areas:
 		#area dir
 		adir = Areasdir/("%d"%a)
@@ -926,7 +930,7 @@ def WriteLevel(rom,s,num,areas,rootdir,m64dir,AllWaterBoxes,Onlys,romname,m64s,s
 			for g in geo:
 				s.MakeDec("const GeoLayout Geo_%s[]"%(id+hex(g[1])))
 		if not OnlySkip:
-			dls = WriteModel(Arom,dls,s,adir,"%s_%d"%(name.upper(),a),id,level)
+			dls = WriteModel(Arom,dls,s,adir,"%s_%d"%(name.upper(),a),id,level,skipTLUT)
 			if not dls:
 				print("{} has no Display Lists, that is very bad".format(name))
 			else:
@@ -1261,7 +1265,7 @@ def AppendAreas(entry,script,Append):
 				break
 	return script
 
-def ExportLevel(rom,level,editor,Append,AllWaterBoxes,Onlys,romname,m64s,seqNums,MusicExtend,lvldefs):
+def ExportLevel(rom,level,editor,Append,AllWaterBoxes,Onlys,romname,m64s,seqNums,MusicExtend,lvldefs,skipTLUT):
 	#choose level
 	s = Script(level)
 	s.Seg2(rom)
@@ -1294,7 +1298,7 @@ def ExportLevel(rom,level,editor,Append,AllWaterBoxes,Onlys,romname,m64s,seqNums
 	LevelName = {**Num2Name}
 	lvldefs.write("DEFINE_LEVEL(%s,%s)\n"%(Num2Name[level],"LEVEL_"+Num2LevelName.get(level,'castle').upper()))
 	#now do level
-	[AllWaterBoxes,m64s,seqNums] = WriteLevel(rom,s,level,s.GetNumAreas(level),rootdir,m64dir,AllWaterBoxes,Onlys,romname,m64s,seqNums,MusicExtend)
+	[AllWaterBoxes,m64s,seqNums] = WriteLevel(rom,s,level,s.GetNumAreas(level),rootdir,m64dir,AllWaterBoxes,Onlys,romname,m64s,seqNums,MusicExtend,skipTLUT)
 	return s
 
 class Actor():
@@ -1336,10 +1340,13 @@ class Actor():
 		for v in val:
 			#edit model to have ROM address. MOP seg 0 is mapped with 0x5F0000 = 0x7D0000
 			if v[2]=='geo':
-				[geo,dl] = GW.GeoActParse(rom,v)
-				geos.extend(geo)
-				dls.append(dl)
-				ids.append(v[1]+'_')
+				try:
+					[geo,dl] = GW.GeoActParse(rom,v)
+					geos.extend(geo)
+					dls.append(dl)
+					ids.append(v[1]+'_')
+				except:
+					print(k + " is broken, will not export")
 			#load via f3d
 			else:
 				dls.append([[v[3],v[4]]])
@@ -1351,8 +1358,12 @@ class Actor():
 		#turn editor off for script object so optimization
 		#doesn't happen
 		v[5].editor=0
-		self.WriteActorModel(rom,dls,v[5],k.split("/")[0]+'_'+k.split("/")[-1]+'_model',ids,fold,v[-1],k)
-		print('{} exported'.format(k))
+		try:
+			self.WriteActorModel(rom,dls,v[5],k.split("/")[0]+'_'+k.split("/")[-1]+'_model',ids,fold,v[-1],k)
+			print('{} exported'.format(k))
+		except:
+			#print("we broke model " + k)
+			pass
 	def WriteActorModel(self,rom,dlss,s,Hname,ids,dir,groupname,foldname):
 		x=0
 		ModelData=[]
@@ -1366,7 +1377,7 @@ class Actor():
 				if first==0x01010101 or not F3D.DecodeFmt.get(c):
 					return
 				try:
-					(dl,verts,textures,amb,diff,ranges,starts, fog) = F3D.DecodeVDL(rom,dls[x],s,id,0)
+					(dl,verts,textures,amb,diff,ranges,starts, fog) = F3D.DecodeVDL(rom,dls[x],s,id,0, False)
 					ModelData.append([starts,dl,verts,textures,amb,diff,ranges,id])
 				except:
 					print("{} had a broken DL and cannot be exported".format(Hname))
@@ -1457,6 +1468,14 @@ def ExportActors(actors,rom,Models,aDir):
 				pass
 			for m in models:
 				if 'custom' not in m[1] and 'unk' not in m[1]:
+					Actors.EvalModel(m,group)
+		return Actors.MakeFolders(rom)
+	elif actors=='all_new':
+		for group,models in Models.items():
+			if group in levels:
+				pass
+			for m in models:
+				if 'custom' in m[1] or 'unk' in m[1] or 'Null' in m[1]:
 					Actors.EvalModel(m,group)
 		return Actors.MakeFolders(rom)
 	#if its not one of the above phrases, its the name of a group
@@ -1580,7 +1599,7 @@ def checkCol(ColD,id,cdir,Bhv,reg,cname):
 		else:
 			c = cdir/'custom.collision.inc.c'
 			if os.path.exists(c) and reg=='new':
-			  os.remove(c)
+				os.remove(c)
 			return 0
 
 def ExportFunctions(functions,rom,Bdir):
@@ -2149,7 +2168,7 @@ def ExportTitleScreen(rom,level):
 		return
 	intro = level/'intro'
 	intro.mkdir(exist_ok=True)
-	WriteModel(rom,[[Rtitleptr,titleptr]],s,intro,'TITLESCREEN','intro_seg7_',intro)
+	WriteModel(rom,[[Rtitleptr,titleptr]],s,intro,'TITLESCREEN','intro_seg7_',intro,False)
 	#Make leveldata.c for intro
 	ld = intro/ 'leveldata.c'
 	ld = open(ld,'w')
@@ -2179,7 +2198,7 @@ def ExportTitleScreen(rom,level):
 
 def main(levels = [], actors = [], editor = False, rom = '', Append = [], WaterOnly = 0, ObjectOnly = 0,
 MusicOnly = 0, MusicExtend = 0, Text = None, Misc = None, Textures = 0, Inherit = 0, Upscale = 0,
-Title = 0, Sound = 0, Objects = 0):
+Title = 0, Sound = 0, Objects = 0, skipTLUT = False):
 	#This is not an arg you should edit really
 	TxtAmount = 170
 	romname = rom.split(".")[0]
@@ -2232,14 +2251,14 @@ Title = 0, Sound = 0, Objects = 0):
 	Scripts = []
 	if levels=='all':
 		for k in Num2Name.keys():
-			s = ExportLevel(rom,k,editor,Append,AllWaterBoxes,Onlys,romname,m64s,seqNums,MusicExtend,lvldefs)
+			s = ExportLevel(rom,k,editor,Append,AllWaterBoxes,Onlys,romname,m64s,seqNums,MusicExtend,lvldefs,skipTLUT)
 			Scripts.append(s)
 			print(Num2Name[k] + ' done')
 	else:
 		for k in levels:
 			if not Num2Name.get(k):
 				continue
-			s = ExportLevel(rom,k,editor,Append,AllWaterBoxes,Onlys,romname,m64s,seqNums,MusicExtend,lvldefs)
+			s = ExportLevel(rom,k,editor,Append,AllWaterBoxes,Onlys,romname,m64s,seqNums,MusicExtend,lvldefs,skipTLUT)
 			Scripts.append(s)
 			print(Num2Name[k] + ' done')
 	lvldefs.close()
@@ -2283,7 +2302,7 @@ def EvalArg(name, arg):
 			return arg
 		raise Exception(f"ROM file {arg} is not found in this directory")
 	elif name == 'levels' or name == 'actors':
-		if arg == 'all' or arg == 'new':
+		if arg == 'all' or arg == 'new' or arg == 'alnew':
 			return arg
 		else:
 			try:

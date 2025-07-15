@@ -709,7 +709,7 @@ class F3d():
     #recursively parse the display list in order to return a bunch of model data
     def GetDataFromModel(self,start):
         DL = self.Gfx.get(start)
-        self.VertBuff = [0]*32 #If you're doing some fucky shit with a larger vert buffer it sucks to suck I guess
+        self.VertBuff = [0]*64 #If you're doing some fucky shit with a larger vert buffer it sucks to suck I guess
         if not DL:
             raise Exception("Could not find DL {}".format(start))
         self.Verts = []

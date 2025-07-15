@@ -1,19 +1,12 @@
-# File extensions
 *.z64
-*.config
-
-# Files
-ImportInstructions.py
-
-# Folders
-__pycache__/**
 ESRGAN/**
+*.config
+__pycache__/**
 actors/**
+levels/**
+text/**
+src/**
+sound/**
+textures/**
 data/**
 include/**
-levels/**
-originals/**
-text/**
-sound/**
-src/**
-textures/**
