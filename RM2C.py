@@ -1360,7 +1360,7 @@ class Actor():
 		v[5].editor=0
 		try:
 			self.WriteActorModel(rom,dls,v[5],k.split("/")[0]+'_'+k.split("/")[-1]+'_model',ids,fold,v[-1],k)
-			print('{} exported'.format(k))
+			print('actor {} exported'.format(k))
 		except:
 			#print("we broke model " + k)
 			pass
@@ -1380,7 +1380,7 @@ class Actor():
 					(dl,verts,textures,amb,diff,ranges,starts, fog) = F3D.DecodeVDL(rom,dls[x],s,id,0, False)
 					ModelData.append([starts,dl,verts,textures,amb,diff,ranges,id])
 				except:
-					print("{} had a broken DL and cannot be exported".format(Hname))
+					print(f"actor {Hname} had a broken DL and the DL cannot be exported")
 				x+=1
 		#change tdir to level dir
 		if groupname in Num2LevelName.values():
@@ -1518,7 +1518,7 @@ def ExportObjects(reg,Objects,rom,ass,rootdir,editor):
 		for bhv,o in Objects.items():
 			r = [re.search(a,bhv) for a in reg]
 			if any(r):
-				[col,funcs] = ExportBhv(o,bdata,bhv,0,f,editor)
+				[col,funcs] = ExportBhv(o,bdata,bhv,0,f,editor,rom)
 				if col:
 					collisions.append([col,o,bhv,new])
 				if funcs:
@@ -1527,7 +1527,7 @@ def ExportObjects(reg,Objects,rom,ass,rootdir,editor):
 		if reg=='all':
 			# f = open('BehComp.py','w') #used to generate data for BehComp
 			for bhv,o in Objects.items():
-				[col,funcs,new] = ExportBhv(o,bdata,bhv,0,f,editor)
+				[col,funcs,new] = ExportBhv(o,bdata,bhv,0,f,editor,rom)
 				if col:
 					collisions.append([col,o,bhv,new])
 				if funcs:
@@ -1535,7 +1535,7 @@ def ExportObjects(reg,Objects,rom,ass,rootdir,editor):
 		elif reg=='new':
 			#Export all, but then do a comparison on whether or not to write
 			for bhv,o in Objects.items():
-				[col,funcs,new] = ExportBhv(o,bdata,bhv,1,f,editor)
+				[col,funcs,new] = ExportBhv(o,bdata,bhv,1,f,editor,rom)
 				if col:
 					collisions.append([col,o,bhv,new])
 				if funcs:
@@ -1544,7 +1544,7 @@ def ExportObjects(reg,Objects,rom,ass,rootdir,editor):
 			for bhv,o in Objects.items():
 				r = re.search(reg,bhv)
 				if r:
-					[col,funcs,new] = ExportBhv(o,bdata,bhv,0,f,editor)
+					[col,funcs,new] = ExportBhv(o,bdata,bhv,0,f,editor,rom)
 					if col:
 						collisions.append([col,o,bhv,new])
 					if funcs:
@@ -1556,13 +1556,13 @@ def ExportObjects(reg,Objects,rom,ass,rootdir,editor):
 		if type(col[0])==list:
 			for c in col[0]:
 				c=[c,col[1],col[2],0]
-				ExportActorCol(c,reg,rom,C)
+				ExportActorCol(c,reg,rom,C,ass)
 		else:
-			ExportActorCol(col,reg,rom,C)
+			ExportActorCol(col,reg,rom,C,ass)
 	if functions:
 		ExportFunctions(functions,rom,bdir)
 
-def ExportActorCol(col,reg,rom,C):
+def ExportActorCol(col,reg,rom,C,ass):
 	#sometimes they have no model
 	if col[1][2]:
 		cname = col[1][2][0][6]
@@ -1584,9 +1584,9 @@ def ExportActorCol(col,reg,rom,C):
 		ColD = ColParse.ColWriteActor(cdir,col[1][3],rom,int(col[0]),id)
 		checkCol(ColD,id,cdir,col[2],reg,cname)
 		# C.write("{} = {}\n".format(id,ColD)) #used to generate data for checkCol
-		print('{} collision exported'.format(cname))
+		print("actor {}'s collision exported".format(cname))
 	except:
-		print('{} collision could not be exported. Invalid address'.format(cname))
+		print("actor {}'s collision could not be exported. Invalid address".format(cname))
 
 def checkCol(ColD,id,cdir,Bhv,reg,cname):
 	if id not in ColComp.__dict__.keys():
@@ -1655,7 +1655,7 @@ def AddFunction(functions,script,op,f):
 	return functions
 
 #f exists if I need to recreate a new comparison file of behaviors
-def ExportBhv(o,bdata,bhv,check,f,editor):
+def ExportBhv(o,bdata,bhv,check,f,editor,rom):
 	Bhvs=[[o[1],o[-1],bhv]]
 	#Behaviors are scripts and can jump around. This keeps track of all jumps and gotos
 	funcs=[]
@@ -1680,6 +1680,7 @@ def ExportBhv(o,bdata,bhv,check,f,editor):
 			bdata.write("const BehaviorScript{}[] = {{\n".format(bhv))
 			[bdata.write(s+',\n') for s in BhvScript]
 			bdata.write('};\n\n')
+			print("{} exported".format(bhv))
 		except:
 			print("Behavior {} failed to export".format(bhv))
 			col=[]
@@ -2301,8 +2302,8 @@ def EvalArg(name, arg):
 		if a.exists() or 1:
 			return arg
 		raise Exception(f"ROM file {arg} is not found in this directory")
-	elif name == 'levels' or name == 'actors':
-		if arg == 'all' or arg == 'new' or arg == 'alnew':
+	elif name == 'levels' or name == 'actors' or name == 'Objects':
+		if arg == 'all' or arg == 'new' or arg == 'all_new':
 			return arg
 		else:
 			try:
