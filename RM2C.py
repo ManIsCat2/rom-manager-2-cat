@@ -1763,8 +1763,8 @@ def ExportTextures(rom,editor,rootdir,Banks,inherit):
 		FullBox.save(str(SB / (name+'.png')))
 		[os.remove(Path(img)) for img in imgs]
 		print('skybox %s done'%name)
-	print('skyboxes done')
 	ExportSeg2(rom,Textures,s)
+	print('skyboxes done')
 
 def ExportSkyTiles(SB,rom,v,k,i):
 	namet = v.split('_')[1]+str(i)

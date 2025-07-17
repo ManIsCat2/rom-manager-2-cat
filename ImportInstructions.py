@@ -20,39 +20,21 @@ It is expected to have many warnings for editor files and for roms with lots of 
 
 Objects without references must have behaviors created for them, be given an existing behavior, or be commented out.
 
- Level wf Area 1 has object  Bhv_Custom_0x130002a0 with no known label.
- Level wf Area 1 has object  Bhv_Custom_0x0040eb00 with no known label.
- Level wf Area 1 has object  Bhv_Custom_0x040086a0 with no known label.
- Level wf Area 1 has object  Bhv_Custom_0x1300003c with no known label.
- Level wf Area 1 has object  Bhv_Custom_0x0040eb54 with no known label.
- Level wf Area 2 has object  Bhv_Custom_0x130001bc with no known label.
- Level wf Area 2 has object  Bhv_Custom_0x1300003c with no known label.
- Level wf Area 2 has object  Bhv_Custom_0x0040ea90 with no known label.
- Level wf Area 2 has object  Bhv_Custom_0x0040e520 with no known label.
- Level wf Area 2 has object  Bhv_Custom_0x040086a0 with no known label.
-******************************************************************************************
-
-New models are detected by comparing the checksums of textures from the specific model.
-The comparison models come from an unedited vanilla rom loaded into Rom Manager.
-If a model is in this list, it has either an unrecognized ID or a new texture.
-If a model is not in this list, it does not guarantee that it is unedited.
-
- model custom_DL_19001000_ in folder custom_19001000 has a new model or new textures.
- model custom_DL_19001040_ in folder custom_19001040 has a new model or new textures.
- model custom_DL_19000800_ in folder custom_19000800 has a new model or new textures.
- model custom_DL_19000820_ in folder custom_19000820 has a new model or new textures.
- model unk_DL_04008090_ in folder unk_wf_04008090 has a new model or new textures.
- model Null_DL_0040ef00_ in folder Null_0040ef00 has a new model or new textures.
- model Null_DL_00405e00_ in folder Null_00405e00 has a new model or new textures.
- model Null_DL_003767d4_ in folder Null_003767d4 has a new model or new textures.
-******************************************************************************************
-
-Collision models are loaded via behavior, not alongside the model. This means it can be more difficult to detect where exactly the collision belongs.
-I attempt to guess based on what model the collision is first used with, but if I'm not sure, it will be logged here.
-
- Collision custom_DL_19001000 in folder custom_19001000 is unkown or found to be new. Used with Behavior bhvGiantPole.
- Collision custom_DL_19001040 in folder custom_19001040 is unkown or found to be new. Used with Behavior bhvThiHugeIslandTop.
- Collision custom_DL_19000800 in folder custom_19000800 is unkown or found to be new. Used with Behavior Bhv_Custom_0x130001bc.
+ Level castle_grounds Area 1 has object  Bhv_Custom_0x13000264 with no known label.
+ Level castle_grounds Area 1 has object  Bhv_Custom_0x1300001c with no known label.
+ Level castle_grounds Area 1 has object  Bhv_Custom_0x1300007c with no known label.
+ Level castle_grounds Area 1 has object  Bhv_Custom_0x1300024c with no known label.
+ Level castle_grounds Area 1 has object  Bhv_Custom_0x13000644 with no known label.
+ Level castle_grounds Area 1 has object  Bhv_Custom_0x13000668 with no known label.
+ Level castle_grounds Area 1 has object  Bhv_Custom_0x1300114c with no known label.
+ Level castle_grounds Area 1 has object  Bhv_Custom_0x13002740 with no known label.
+ Level castle_grounds Area 1 has object  Bhv_Custom_0x13002fe0 with no known label.
+ Level castle_grounds Area 1 has object  Bhv_Custom_0x13003014 with no known label.
+ Level castle_grounds Area 1 has object  Bhv_Custom_0x130030cc with no known label.
+ Level castle_grounds Area 1 has object  Bhv_Custom_0x130044b4 with no known label.
+ Level castle_grounds Area 1 has object  Bhv_Custom_0x13004830 with no known label.
+ Level castle_grounds Area 2 has object  Bhv_Custom_0x130013b8 with no known label.
+ Level castle_grounds Area 2 has object  Bhv_Custom_0x13001bf0 with no known label.
 
 Known methods of crashing:
 *****************************************************************************
