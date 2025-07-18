@@ -58,7 +58,7 @@ class Script():
 		seg = self.banks[Bank]
 		if not seg:
 			print(hex(B),hex(Bank),self.banks[Bank-2:Bank+3])
-			raise "Unkonwn Segment."
+			raise "Unknown Segment."
 		return seg[0]+offset
 	def L4B(self,T):
 		x=0
@@ -1775,9 +1775,123 @@ def ExportSkyTiles(SB,rom,v,k,i):
 	return str(SB / (namet+'.png'))
 
 #segment 2
+from capstone import *
+
+class JALCall:
+    def __init__(self, a0=0, a1=0, a2=0, a3=0, jal_addr=0):
+        self.a0 = a0
+        self.a1 = a1
+        self.a2 = a2
+        self.a3 = a3
+        self.jal_addr = jal_addr
+
+    def __repr__(self):
+        return f"JALCall(a0=0x{self.a0:X}, a1=0x{self.a1:X}, a2=0x{self.a2:X}, a3=0x{self.a3:X}, jal_addr=0x{self.jal_addr:X})"
+
+def find_jals_in_function(rom_bytes, ram_func, ram_to_rom):
+    md = Cs(CS_ARCH_MIPS, CS_MODE_MIPS32 + CS_MODE_BIG_ENDIAN)
+    func_offset = ram_func - ram_to_rom
+    code = rom_bytes[func_offset:func_offset + 0x1000]
+    instructions = list(md.disasm(code, ram_func))
+
+    calls = []
+    reg_state = {"a0": 0, "a1": 0, "a2": 0, "a3": 0}
+    jal_addr = 0
+    add_next_time = False
+
+    gp_register_values = {reg: 0 for reg in ["a0", "a1", "a2", "a3", "r0"]}
+
+    def parse_imm(s):
+        return int(s, 0)  # handles hex, decimal, negative hex
+
+    def reg_name(r):
+        return r.lower()
+
+    for ins in instructions:
+        op = ins.mnemonic
+        args = ins.op_str.replace("$", "").split(", ")
+        
+        # normalize
+        if len(args) < 3:
+            args += [None] * (3 - len(args))
+
+        if op == "lui":
+            dest = reg_name(args[0])
+            imm = parse_imm(args[1]) if args[1] else 0
+            if dest in reg_state:
+                reg_state[dest] = imm << 16
+                gp_register_values[dest] = reg_state[dest]
+
+        elif op == "addiu":
+            dest = reg_name(args[0])
+            src = reg_name(args[1])
+            imm = parse_imm(args[2]) if args[2] else 0
+
+            if dest in reg_state:
+                if dest == src:
+                    # aX += immediate
+                    reg_state[dest] += imm
+                elif src == "r0":
+                    # aX = immediate
+                    reg_state[dest] = imm
+                else:
+                    reg_state[dest] = imm + gp_register_values.get(src, 0)
+
+                gp_register_values[dest] = reg_state[dest]
+
+        elif op == "ori":
+            dest = reg_name(args[0])
+            src = reg_name(args[1])
+            imm = parse_imm(args[2]) if args[2] else 0
+
+            if dest in reg_state:
+                if dest == src:
+                    # aX |= immediate 16
+                    reg_state[dest] |= imm & 0xFFFF
+                elif src == "r0":
+                    # aX = immediate
+                    reg_state[dest] = imm
+                else:
+                    # aX = immediate | gp_register_values[src]
+                    reg_state[dest] = imm | gp_register_values.get(src, 0)
+
+                gp_register_values[dest] = reg_state[dest]
+
+        elif op == "jal":
+            target = 0
+            try:
+                target = int(args[0], 0)
+            except Exception:
+                target = ins.operands[0].imm if ins.operands else 0
+
+            jal_addr = (ins.address & 0xF0000000) | (target << 2)
+            add_next_time = True
+
+        if add_next_time:
+            calls.append(JALCall(
+                a0=reg_state["a0"],
+                a1=reg_state["a1"],
+                a2=reg_state["a2"],
+                a3=reg_state["a3"],
+                jal_addr=jal_addr
+            ))
+            add_next_time = False
+
+    return calls
+
 def ExportSeg2(rom,Textures,s):
 	Seg2 = Textures/'segment2'
 	Seg2.mkdir(exist_ok=True)
+	Seg2Location = 0x800000
+	Funcs = find_jals_in_function(rom, 0x80248964, 0x80245000)
+
+	for call in Funcs:
+		if call.a0 == 0x2:
+			Seg2Location = call.a1
+			print(f"Segment2 at 0x{Seg2Location:x}")
+			break 
+	if Seg2Location==0x800000:
+		Seg2Location=0x02000000
 	#seg2 textures have a few sections. First is 16x16 HUD glyphs. 0x200 each
 	nameOff=0
 	for tex in range(0,0x4A00,0x200):
@@ -1785,7 +1899,7 @@ def ExportSeg2(rom,Textures,s):
 			nameOff+=Seg2Glpyhs[tex]
 		gname = 'segment2.{:05X}.rgba16'.format(tex+nameOff)
 		glyph = BinPNG.MakeImage(str(Seg2 / gname))
-		loc = s.B2P(0x02000000+tex)
+		loc = s.B2P(Seg2Location +tex)
 		bin = rom[loc:loc+0x200]
 		BinPNG.RGBA16(16,16,bin,glyph)
 	#cam glyphs are separate
@@ -1793,21 +1907,21 @@ def ExportSeg2(rom,Textures,s):
 	for tex in range(0x7000,0x7600,0x200):
 		gname = 'segment2.{:05X}.rgba16'.format(tex+nameOff)
 		glyph = BinPNG.MakeImage(str(Seg2 / gname))
-		loc = s.B2P(0x02000000+tex)
+		loc = s.B2P(Seg2Location+tex)
 		bin = rom[loc:loc+0x200]
 		BinPNG.RGBA16(16,16,bin,glyph)
 	#cam up/down are 8x8
 	for tex in range(0x7600,0x7700,0x80):
 		gname = 'segment2.{:05X}.rgba16'.format(tex+nameOff)
 		glyph = BinPNG.MakeImage(str(Seg2 / gname))
-		loc = s.B2P(0x02000000+tex)
+		loc = s.B2P(Seg2Location+tex)
 		bin = rom[loc:loc+0x80]
 		BinPNG.RGBA16(8,8,bin,glyph)
 	#Now exporting dialog chars. They are 16x8 IA4. 0x40 in length each.
 	for char in range(0x5900,0x7000,0x40):
 		gname = 'font_graphics.{:05X}.ia4'.format(char)
 		glyph = BinPNG.MakeImage(str(Seg2 / gname))
-		loc = s.B2P(0x02000000+char)
+		loc = s.B2P(Seg2Location+char)
 		bin = rom[loc:loc+0x40]
 		BinPNG.IA(16,8,4,bin,glyph)
 	#now credits font. Its 8x8 rgba16, 0x80 length each
@@ -1816,7 +1930,7 @@ def ExportSeg2(rom,Textures,s):
 		#the names are offset from actual loc
 		gname = 'segment2.{:05X}.rgba16'.format(char+nameOff)
 		glyph = BinPNG.MakeImage(str(Seg2 / gname))
-		loc = s.B2P(0x02000000+char)
+		loc = s.B2P(Seg2Location+char)
 		bin = rom[loc:loc+0x80]
 		BinPNG.RGBA16(8,8,bin,glyph)
 	#shadows. 16x16 IA8. 0x100 len
@@ -1824,14 +1938,14 @@ def ExportSeg2(rom,Textures,s):
 	for char in range(2):
 		gname = '{}.ia4'.format(names[char])
 		glyph = BinPNG.MakeImage(str(Seg2 / gname))
-		loc = s.B2P(0x02000000+char*0x100+0x120b8)
+		loc = s.B2P(Seg2Location+char*0x100+0x120b8)
 		bin = rom[loc:loc+0x100]
 		BinPNG.IA(16,16,8,bin,glyph)
 	#warp transitions. 32x64 or 64x64. I will grab data from arr for these
 	for warp in Seg2WarpTransDat:
 		gname = 'segment2.{}.ia4'.format(warp[1])
 		glyph = BinPNG.MakeImage(str(Seg2 / gname))
-		loc = s.B2P(0x02000000+warp[0])
+		loc = s.B2P(Seg2Location+warp[0])
 		bin = rom[loc:loc+warp[3]]
 		BinPNG.IA(*warp[2],8,bin,glyph)
 	#last in seg2 is water boxes. These are all rgba16 32x32 except mist which is IA16
@@ -1843,7 +1957,7 @@ def ExportSeg2(rom,Textures,s):
 		else:
 			gname = 'segment2.{:05X}.rgba16'.format(TexLoc+nameOff)
 		glyph = BinPNG.MakeImage(str(Seg2 / gname))
-		loc = s.B2P(0x02000000+TexLoc)
+		loc = s.B2P(Seg2Location+TexLoc)
 		bin = rom[loc:loc+0x800]
 		if tex==3:
 			BinPNG.IA(32,32,16,bin,glyph)
