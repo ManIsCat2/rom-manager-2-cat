@@ -124,6 +124,14 @@ class Area():
 		def __init__(self):
 			pass
 
+def GetlevelName(lvl):
+	name = ""
+	try:
+		name = Num2Name[lvl]
+	except:
+		name = "ext_level"+str(lvl)
+	return name
+
 #tuple convert to hex
 def TcH(bytes):
 	a = struct.pack(">%dB"%len(bytes),*bytes)
@@ -415,7 +423,7 @@ def FormatScrollObject(scroll,verts,obj,s,area):
 	obj[6]=scroll[-1] #rz
 	obj[4]=int(offset/0x10) #rx
 	obj[-3] = bparam
-	s.ScrollArray.append(['VB_%s_%d_0x%x'%(Num2Name[s.Currlevel],scroll[1],closest),int(offset/0x10)])
+	s.ScrollArray.append(['VB_%s_%d_0x%x'%(GetlevelName(s.Currlevel),scroll[1],closest),int(offset/0x10)])
 	return obj
 
 def PlaceObject(rom,cmd,start,script):
@@ -780,7 +788,10 @@ def WriteArea(f,s,area,Anum,id):
 	f.write("RETURN()\n};\n")
 
 def GrabOGDatH(q,rootdir,name):
-	dir = rootdir/'originals'/name
+	if name.startswith("ext_level"):
+		dir = rootdir/'originals'/'bob'
+	else:
+		dir = rootdir/'originals'/name
 	head = open(dir/'header.h','r')
 	head = head.readlines()
 	for l in head:
@@ -817,7 +828,7 @@ def WriteVanillaLevel(rom,s,num,areas,rootdir,m64dir,AllWaterBoxes,Onlys,romname
 	ObjectOnly = Onlys[1]
 	MusicOnly = Onlys[2]
 	OnlySkip = any(Onlys)
-	name=Num2Name[num]
+	name=GetlevelName(num)
 	level=Path(rootdir)/'levels'/("%s"%name)
 	original = rootdir/'originals'/("%s"%name)
 	shutil.copytree(original,level)
@@ -903,9 +914,12 @@ def WriteLevel(rom,s,num,areas,rootdir,m64dir,AllWaterBoxes,Onlys,romname,m64s,s
 	ObjectOnly = Onlys[1]
 	MusicOnly = Onlys[2]
 	OnlySkip = any(Onlys)
-	name=Num2Name[num]
+	name=GetlevelName(num)
 	level=Path(rootdir)/'levels'/("%s"%name)
-	original = rootdir/'originals'/("%s"%name)
+	if name.startswith("ext_level"):
+		original = rootdir/'originals'/"bob"
+	else:
+		original = rootdir/'originals'/("%s"%name)
 	shutil.copytree(original,level)
 	Areasdir = level/"areas"
 	Areasdir.mkdir(exist_ok=True)
@@ -1304,11 +1318,10 @@ def ExportLevel(rom,level,editor,Append,AllWaterBoxes,Onlys,romname,m64s,seqNums
 	#this tool isn't for exporting vanilla levels
 	#so I export only objects for these levels
 	if not s.banks[0x19]:
-		print(f"Level {Num2Name[level]} is unmodified!")
+		print(f"Level {GetlevelName(level)} is unmodified!")
 		WriteVanillaLevel(rom,s,level,s.GetNumAreas(level),rootdir,m64dir,AllWaterBoxes,[Onlys[0],1,Onlys[0]],romname,m64s,seqNums,MusicExtend)
 		return s
-	LevelName = {**Num2Name}
-	lvldefs.write("DEFINE_LEVEL(%s,%s)\n"%(Num2Name[level],"LEVEL_"+Num2LevelName.get(level,'castle').upper()))
+	lvldefs.write("DEFINE_LEVEL(%s,%s)\n"%(GetlevelName(level),"LEVEL_"+GetlevelName(level).upper()))
 	#now do level
 	[AllWaterBoxes,m64s,seqNums] = WriteLevel(rom,s,level,s.GetNumAreas(level),rootdir,m64dir,AllWaterBoxes,Onlys,romname,m64s,seqNums,MusicExtend,skipTLUT)
 	return s
@@ -2385,14 +2398,12 @@ Title = 0, Sound = 0, Objects = 0, skipTLUT = False):
 		for k in Num2Name.keys():
 			s = ExportLevel(rom,k,editor,Append,AllWaterBoxes,Onlys,romname,m64s,seqNums,MusicExtend,lvldefs,skipTLUT)
 			Scripts.append(s)
-			print(Num2Name[k] + ' done')
+			print(GetlevelName(k) + ' done')
 	else:
 		for k in levels:
-			if not Num2Name.get(k):
-				continue
 			s = ExportLevel(rom,k,editor,Append,AllWaterBoxes,Onlys,romname,m64s,seqNums,MusicExtend,lvldefs,skipTLUT)
 			Scripts.append(s)
-			print(Num2Name[k] + ' done')
+			print(GetlevelName(k) + ' done')
 	lvldefs.close()
 	gc.collect() #gaurantee some mem is freed up.
 	#Export texture scrolls

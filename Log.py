@@ -2,7 +2,7 @@
 #and also go give general warnings and instructions for people who don't know much
 import sys
 from RM2CData import *
-
+from RM2C import GetlevelName
 log = sys.path[0]
 
 log = open(log+'//ImportInstructions.py','w')
@@ -38,7 +38,7 @@ def InvalidScroll(level,area,scroll):
 		return
 	else:
 		BadScroll.append((level,area,scroll))
-		err = 'Texture Scroll Object in level {} area {} at {} has unrecognized address. Object Has been commented out.'.format(Num2Name[level],area,hex(scroll[2]))
+		err = 'Texture Scroll Object in level {} area {} at {} has unrecognized address. Object Has been commented out.'.format(GetlevelName(level),area,hex(scroll[2]))
 		print(err)
 		Scrollerrs.append(err+'\n')
 
@@ -64,7 +64,7 @@ def UnkObject(level,Area,bhv):
 		return
 	else:
 		UnkObjs.append((level,Area,bhv))
-		err = 'Level {} Area {} has object {} with no known label.'.format(Num2Name[level],Area,bhv)
+		err = 'Level {} Area {} has object {} with no known label.'.format(GetlevelName(level),Area,bhv)
 		print(err)
 		Objerrs.append(err+'\n')
 

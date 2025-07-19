@@ -20,51 +20,7 @@ It is expected to have many warnings for editor files and for roms with lots of 
 
 Objects without references must have behaviors created for them, be given an existing behavior, or be commented out.
 
- Level castle_grounds Area 1 has object  Bhv_Custom_0x0040ef64 with no known label.
- Level castle_grounds Area 1 has object  Bhv_Custom_0x00405b80 with no known label.
- Level castle_grounds Area 1 has object  Bhv_Custom_0x130001dc with no known label.
- Level castle_grounds Area 1 has object  Bhv_Custom_0x00403f00 with no known label.
- Level castle_grounds Area 1 has object  Bhv_Custom_0x130006ac with no known label.
- Level castle_grounds Area 1 has object  Bhv_Custom_0x0700ccc0 with no known label.
- Level castle_grounds Area 1 has object  Bhv_Custom_0x0703f180 with no known label.
- Level castle_grounds Area 1 has object  Bhv_Custom_0x0703fdc0 with no known label.
- Level castle_grounds Area 2 has object  Bhv_Custom_0x130006ac with no known label.
- Level castle_grounds Area 2 has object  Bhv_Custom_0x130001dc with no known label.
- Level castle_grounds Area 2 has object  Bhv_Custom_0x0700ccc0 with no known label.
- Level castle_grounds Area 2 has object  Bhv_Custom_0x0703f180 with no known label.
- Level castle_grounds Area 2 has object  Bhv_Custom_0x0703fdc0 with no known label.
- Level castle_grounds Area 3 has object  Bhv_Custom_0x130006ac with no known label.
- Level castle_grounds Area 3 has object  Bhv_Custom_0x130001dc with no known label.
- Level castle_grounds Area 3 has object  Bhv_Custom_0x0700ccc0 with no known label.
- Level castle_grounds Area 3 has object  Bhv_Custom_0x19000280 with no known label.
- Level castle_grounds Area 3 has object  Bhv_Custom_0x0703cce0 with no known label.
- Level castle_grounds Area 3 has object  Bhv_Custom_0x0703fdc0 with no known label.
- Level castle_grounds Area 4 has object  Bhv_Custom_0x0703bfe0 with no known label.
- Level castle_grounds Area 4 has object  Bhv_Custom_0x130006ac with no known label.
- Level castle_grounds Area 4 has object  Bhv_Custom_0x0700ccc0 with no known label.
- Level castle_grounds Area 4 has object  Bhv_Custom_0x130001dc with no known label.
- Level castle_grounds Area 4 has object  Bhv_Custom_0x0703fdc0 with no known label.
- Level castle_grounds Area 4 has object  Bhv_Custom_0x0703cce0 with no known label.
- Level castle_grounds Area 4 has object  Bhv_Custom_0x0702f9e0 with no known label.
-******************************************************************************************
-
-New models are detected by comparing the checksums of textures from the specific model.
-The comparison models come from an unedited vanilla rom loaded into Rom Manager.
-If a model is in this list, it has either an unrecognized ID or a new texture.
-If a model is not in this list, it does not guarantee that it is unedited.
-
- model Null_DL_00400200_ in folder Null_00400200 has a new model or new textures.
- model Null_DL_00401c00_ in folder Null_00401c00 has a new model or new textures.
- model Null_DL_0040ef00_ in folder Null_0040ef00 has a new model or new textures.
- model Null_DL_00405e00_ in folder Null_00405e00 has a new model or new textures.
- model Null_DL_003767d4_ in folder Null_003767d4 has a new model or new textures.
- model custom_DL_0703e040_ in folder custom_0703e040 has a new model or new textures.
- model custom_DL_19000240_ in folder custom_19000240 has a new model or new textures.
- model custom_DL_19000260_ in folder custom_19000260 has a new model or new textures.
- model custom_DL_19000400_ in folder custom_19000400 has a new model or new textures.
- model custom_DL_19000300_ in folder custom_19000300 has a new model or new textures.
- model custom_DL_19000340_ in folder custom_19000340 has a new model or new textures.
- model unk_DL_04008090_ in folder unk_castle_grounds_04008090 has a new model or new textures.
+ Level ext_level35 Area 1 has object  Bhv_Custom_0x13003fc4 with no known label.
 
 Known methods of crashing:
 *****************************************************************************
