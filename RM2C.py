@@ -21,6 +21,11 @@ import ColComp
 mapF = open('sm64.us.map','r')
 map = mapF.readlines()
 
+Seg2Location = 0x800000
+Seg2LocationEnd = Seg2Location + 0x3156
+Seg15Location = 0x2ABCA0
+RomDataGlobal = None
+
 class Script():
 	def __init__(self,level):
 		global map
@@ -43,8 +48,19 @@ class Script():
 		self.header=[]
 		self.objects = []
 		self.ScrollArray=[]
+		# setup segments
+		UPH2 = (lambda rom,addr: struct.unpack(">I", rom[addr:addr+4])[0])
+		global RomDataGlobal
+		global Seg15Location
+		global Seg2Location
+		global Seg2LocationEnd
+		self.banks[0x15] = [Seg15Location, UPH2(RomDataGlobal, 0x2A6230)]
+		tempSeg2Loc = Seg2Location
+		if Seg2Location==0x02000000:
+			tempSeg2Loc=0x800000
+		self.banks[0x2] = [tempSeg2Loc+0x3156, Seg2LocationEnd+0x3156]
 	def B2P(self,B):
-		Bank=B>>24
+		Bank=(B>>24)
 		offset=B&0xFFFFFF
 		if Bank==0:
 			if offset>0x400000 and offset<0x420000:
@@ -55,7 +71,11 @@ class Script():
 					return offset+0x1E0000
 				#Its some random garbage nice
 				return offset
-		seg = self.banks[Bank]
+		seg = None
+		try:
+			seg = self.banks[Bank]
+		except:
+			print("Bank", Bank, "isn't loaded yet!")
 		if not seg:
 			print(hex(B),hex(Bank),self.banks[Bank-2:Bank+3])
 			raise "Unknown Segment."
@@ -100,15 +120,6 @@ class Script():
 		self.banks[0x0e]=[start,end]
 	def MakeDec(self,name):
 		self.header.append(name)
-	def Seg2(self,rom):
-		UPH = (lambda x,y: struct.unpack(">H",x[y:y+2])[0])
-		start=UPH(rom,0x3ac2)<<16
-		start+=UPH(rom,0x3acE)
-		end=UPH(rom,0x3ac6)<<16
-		end+=UPH(rom,0x3acA)
-		#mio0 for seg2 just happens to expand start by 0x3156 idk how it really works
-		self.banks[2]=[start+0x3156,end+0x3156]
-
 class Area():
 		def __init__(self):
 			pass
@@ -1268,8 +1279,8 @@ def AppendAreas(entry,script,Append):
 def ExportLevel(rom,level,editor,Append,AllWaterBoxes,Onlys,romname,m64s,seqNums,MusicExtend,lvldefs,skipTLUT):
 	#choose level
 	s = Script(level)
-	s.Seg2(rom)
-	entry = 0x108A10
+	global Seg15Location
+	entry = Seg15Location
 	s = AppendAreas(entry,s,Append)
 	s.Aoffset = 0
 	s.editor = editor
@@ -1293,6 +1304,7 @@ def ExportLevel(rom,level,editor,Append,AllWaterBoxes,Onlys,romname,m64s,seqNums
 	#this tool isn't for exporting vanilla levels
 	#so I export only objects for these levels
 	if not s.banks[0x19]:
+		print(f"Level {Num2Name[level]} is unmodified!")
 		WriteVanillaLevel(rom,s,level,s.GetNumAreas(level),rootdir,m64dir,AllWaterBoxes,[Onlys[0],1,Onlys[0]],romname,m64s,seqNums,MusicExtend)
 		return s
 	LevelName = {**Num2Name}
@@ -1362,7 +1374,6 @@ class Actor():
 			self.WriteActorModel(rom,dls,v[5],k.split("/")[0]+'_'+k.split("/")[-1]+'_model',ids,fold,v[-1],k)
 			print('actor {} exported'.format(k))
 		except:
-			#print("we broke model " + k)
 			pass
 	def WriteActorModel(self,rom,dlss,s,Hname,ids,dir,groupname,foldname):
 		x=0
@@ -1724,7 +1735,6 @@ def FindCustomSkyboxse(rom,Banks,SB):
 
 def ExportTextures(rom,editor,rootdir,Banks,inherit):
 	s=Script(9)
-	s.Seg2(rom)
 	Textures = rootdir/"textures"
 	if os.path.isdir(Textures) and not inherit:
 		shutil.rmtree(Textures)
@@ -1775,125 +1785,12 @@ def ExportSkyTiles(SB,rom,v,k,i):
 	return str(SB / (namet+'.png'))
 
 #segment 2
-from capstone import *
-
-class JALCall:
-    def __init__(self, a0=0, a1=0, a2=0, a3=0, jal_addr=0):
-        self.a0 = a0
-        self.a1 = a1
-        self.a2 = a2
-        self.a3 = a3
-        self.jal_addr = jal_addr
-
-    def __repr__(self):
-        return f"JALCall(a0=0x{self.a0:X}, a1=0x{self.a1:X}, a2=0x{self.a2:X}, a3=0x{self.a3:X}, jal_addr=0x{self.jal_addr:X})"
-
-def find_jals_in_function(rom_bytes, ram_func, ram_to_rom):
-    md = Cs(CS_ARCH_MIPS, CS_MODE_MIPS32 + CS_MODE_BIG_ENDIAN)
-    func_offset = ram_func - ram_to_rom
-    code = rom_bytes[func_offset:func_offset + 0x1000]
-    instructions = list(md.disasm(code, ram_func))
-
-    calls = []
-    reg_state = {"a0": 0, "a1": 0, "a2": 0, "a3": 0}
-    jal_addr = 0
-    add_next_time = False
-
-    gp_register_values = {reg: 0 for reg in ["a0", "a1", "a2", "a3", "r0"]}
-
-    def parse_imm(s):
-        return int(s, 0)  # handles hex, decimal, negative hex
-
-    def reg_name(r):
-        return r.lower()
-
-    for ins in instructions:
-        op = ins.mnemonic
-        args = ins.op_str.replace("$", "").split(", ")
-        
-        # normalize
-        if len(args) < 3:
-            args += [None] * (3 - len(args))
-
-        if op == "lui":
-            dest = reg_name(args[0])
-            imm = parse_imm(args[1]) if args[1] else 0
-            if dest in reg_state:
-                reg_state[dest] = imm << 16
-                gp_register_values[dest] = reg_state[dest]
-
-        elif op == "addiu":
-            dest = reg_name(args[0])
-            src = reg_name(args[1])
-            imm = parse_imm(args[2]) if args[2] else 0
-
-            if dest in reg_state:
-                if dest == src:
-                    # aX += immediate
-                    reg_state[dest] += imm
-                elif src == "r0":
-                    # aX = immediate
-                    reg_state[dest] = imm
-                else:
-                    reg_state[dest] = imm + gp_register_values.get(src, 0)
-
-                gp_register_values[dest] = reg_state[dest]
-
-        elif op == "ori":
-            dest = reg_name(args[0])
-            src = reg_name(args[1])
-            imm = parse_imm(args[2]) if args[2] else 0
-
-            if dest in reg_state:
-                if dest == src:
-                    # aX |= immediate 16
-                    reg_state[dest] |= imm & 0xFFFF
-                elif src == "r0":
-                    # aX = immediate
-                    reg_state[dest] = imm
-                else:
-                    # aX = immediate | gp_register_values[src]
-                    reg_state[dest] = imm | gp_register_values.get(src, 0)
-
-                gp_register_values[dest] = reg_state[dest]
-
-        elif op == "jal":
-            target = 0
-            try:
-                target = int(args[0], 0)
-            except Exception:
-                target = ins.operands[0].imm if ins.operands else 0
-
-            jal_addr = (ins.address & 0xF0000000) | (target << 2)
-            add_next_time = True
-
-        if add_next_time:
-            calls.append(JALCall(
-                a0=reg_state["a0"],
-                a1=reg_state["a1"],
-                a2=reg_state["a2"],
-                a3=reg_state["a3"],
-                jal_addr=jal_addr
-            ))
-            add_next_time = False
-
-    return calls
-
 def ExportSeg2(rom,Textures,s):
 	Seg2 = Textures/'segment2'
 	Seg2.mkdir(exist_ok=True)
-	Seg2Location = 0x800000
-	Funcs = find_jals_in_function(rom, 0x80248964, 0x80245000)
-
-	for call in Funcs:
-		if call.a0 == 0x2:
-			Seg2Location = call.a1
-			print(f"Segment2 at 0x{Seg2Location:x}")
-			break 
-	if Seg2Location==0x800000:
-		Seg2Location=0x02000000
 	#seg2 textures have a few sections. First is 16x16 HUD glyphs. 0x200 each
 	nameOff=0
+	global Seg2Location
 	for tex in range(0,0x4A00,0x200):
 		if tex in Seg2Glpyhs:
 			nameOff+=Seg2Glpyhs[tex]
@@ -2121,7 +2018,6 @@ def AsciiConvert(num):
 #This basically means I have to hardcode offsets, it should work for almost every rom anyway.
 def ExportText(rom,rootdir,TxtAmt):
 	s = Script(9)
-	s.Seg2(rom)
 	DiaTbl = s.B2P(0x0200FFC8)
 	text = rootdir/"text"/'us'
 	os.makedirs(text,exist_ok=True)
@@ -2263,8 +2159,8 @@ def ExportTitleScreen(rom,level):
 	#choose level
 	s = Script(0)
 	s.editor=0
-	s.Seg2(rom)
-	entry = 0x108A10
+	global Seg15Location
+	entry = Seg15Location
 	#get all level data from script
 	while(True):
 		#parse script until reaching special
@@ -2309,7 +2205,110 @@ def ExportTitleScreen(rom,level):
 		loc= s.B2P(0x07000000+tex[1])
 		bin = rom[loc:loc+tex[3]]
 		BinPNG.RGBA16(*tex[2],bin,img)
+  
+from capstone import *
 
+class JALCall:
+    def __init__(self, a0=0, a1=0, a2=0, a3=0, jal_addr=0):
+        self.a0 = a0
+        self.a1 = a1
+        self.a2 = a2
+        self.a3 = a3
+        self.jal_addr = jal_addr
+
+    def __repr__(self):
+        return f"JALCall(a0=0x{self.a0:X}, a1=0x{self.a1:X}, a2=0x{self.a2:X}, a3=0x{self.a3:X}, jal_addr=0x{self.jal_addr:X})"
+
+def findJalsInFunc(rom_bytes, ram_func, ram_to_rom):
+    md = Cs(CS_ARCH_MIPS, CS_MODE_MIPS32 + CS_MODE_BIG_ENDIAN)
+    func_offset = ram_func - ram_to_rom
+    code = rom_bytes[func_offset:func_offset + 0x1000]
+    instructions = list(md.disasm(code, ram_func))
+
+    calls = []
+    reg_state = {"a0": 0, "a1": 0, "a2": 0, "a3": 0}
+    jal_addr = 0
+    add_next_time = False
+
+    gp_register_values = {reg: 0 for reg in ["a0", "a1", "a2", "a3", "r0"]}
+
+    def parse_imm(s):
+        return int(s, 0)  # handles hex, decimal, negative hex
+
+    def reg_name(r):
+        return r.lower()
+
+    for ins in instructions:
+        op = ins.mnemonic
+        args = ins.op_str.replace("$", "").split(", ")
+        
+        # normalize
+        if len(args) < 3:
+            args += [None] * (3 - len(args))
+
+        if op == "lui":
+            dest = reg_name(args[0])
+            imm = parse_imm(args[1]) if args[1] else 0
+            if dest in reg_state:
+                reg_state[dest] = imm << 16
+                gp_register_values[dest] = reg_state[dest]
+
+        elif op == "addiu":
+            dest = reg_name(args[0])
+            src = reg_name(args[1])
+            imm = parse_imm(args[2]) if args[2] else 0
+
+            if dest in reg_state:
+                if dest == src:
+                    # aX += immediate
+                    reg_state[dest] += imm
+                elif src == "r0":
+                    # aX = immediate
+                    reg_state[dest] = imm
+                else:
+                    reg_state[dest] = imm + gp_register_values.get(src, 0)
+
+                gp_register_values[dest] = reg_state[dest]
+
+        elif op == "ori":
+            dest = reg_name(args[0])
+            src = reg_name(args[1])
+            imm = parse_imm(args[2]) if args[2] else 0
+
+            if dest in reg_state:
+                if dest == src:
+                    # aX |= immediate 16
+                    reg_state[dest] |= imm & 0xFFFF
+                elif src == "r0":
+                    # aX = immediate
+                    reg_state[dest] = imm
+                else:
+                    # aX = immediate | gp_register_values[src]
+                    reg_state[dest] = imm | gp_register_values.get(src, 0)
+
+                gp_register_values[dest] = reg_state[dest]
+
+        elif op == "jal":
+            target = 0
+            try:
+                target = int(args[0], 0)
+            except Exception:
+                target = ins.operands[0].imm if ins.operands else 0
+
+            jal_addr = (ins.address & 0xF0000000) | (target << 2)
+            add_next_time = True
+
+        if add_next_time:
+            calls.append(JALCall(
+                a0=reg_state["a0"],
+                a1=reg_state["a1"],
+                a2=reg_state["a2"],
+                a3=reg_state["a3"],
+                jal_addr=jal_addr
+            ))
+            add_next_time = False
+
+    return calls
 
 def main(levels = [], actors = [], editor = False, rom = '', Append = [], WaterOnly = 0, ObjectOnly = 0,
 MusicOnly = 0, MusicExtend = 0, Text = None, Misc = None, Textures = 0, Inherit = 0, Upscale = 0,
@@ -2319,8 +2318,26 @@ Title = 0, Sound = 0, Objects = 0, skipTLUT = False):
 	romname = rom.split(".")[0]
 	fullromname = rom
 	rom = open(rom,'rb')
-	rom = rom.read()
+	global RomDataGlobal
+	RomDataGlobal = rom = rom.read()
 	root = sys.path[0]
+	#find segments
+	global Seg2Location
+	global Seg2LocationEnd
+	Funcs = findJalsInFunc(rom, 0x80248964, 0x80245000) #ok so, seg2 export is fucked, how
+	for call in Funcs:
+		if call.a0 == 0x2:
+			Seg2Location = call.a1
+			Seg2LocationEnd = call.a2
+			print(f"Found Segment 0x2: 0x{Seg2Location:08X} - 0x{Seg2LocationEnd:08X}")
+			if Seg2Location==0x800000:
+				Seg2Location=0x02000000
+			break
+	UPH2 = (lambda rom,addr: struct.unpack(">I", rom[addr:addr+4])[0])
+	global Seg15Location
+	Seg15Location = UPH2(rom, 0x2A622C)
+	Seg15LocationEnd = UPH2(rom, 0x2A6230)
+	print(f"Found Segment 0x15: 0x{Seg15Location:08X} – 0x{Seg15LocationEnd:08X}")
 	#Export dialogs and course names
 	if (Text or levels=='all') and Text!=0:
 		for A in Append:

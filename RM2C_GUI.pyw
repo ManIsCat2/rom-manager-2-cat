@@ -150,8 +150,11 @@ class RM2CGUI(QWidget):
         self.process.start()
 
     def handle_stdout(self):
-        data = self.process.readAllStandardOutput().data().decode()
-        self.log_output.appendPlainText(data)
+        try:
+            data = self.process.readAllStandardOutput().data().decode()
+            self.log_output.appendPlainText(data)
+        except:
+            pass
 
     def handle_stderr(self):
         data = self.process.readAllStandardError().data().decode()
