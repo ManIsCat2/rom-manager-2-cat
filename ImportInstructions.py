@@ -20,7 +20,23 @@ It is expected to have many warnings for editor files and for roms with lots of 
 
 Objects without references must have behaviors created for them, be given an existing behavior, or be commented out.
 
- Level ext_level35 Area 1 has object  Bhv_Custom_0x13003fc4 with no known label.
+ Level bob Area 1 has object  Bhv_Custom_0x0e000820 with no known label.
+ Level bob Area 1 has object  Bhv_Custom_0x0e003000 with no known label.
+ Level bob Area 1 has object  Bhv_Custom_0x0e003060 with no known label.
+ Level bob Area 1 has object  Bhv_Custom_0x0e002e50 with no known label.
+ Level bob Area 1 has object  Bhv_Custom_0x13005730 with no known label.
+ Level bob Area 1 has object  Bhv_Custom_0x0e003270 with no known label.
+ Level bob Area 1 has object  Bhv_Custom_0x0e0009b0 with no known label.
+ Level bob Area 1 has object  Bhv_Custom_0x13005900 with no known label.
+ Level bob Area 1 has object  Bhv_Custom_0x0e003110 with no known label.
+ Level bob Area 1 has object  Bhv_Custom_0x1300582c with no known label.
+ Level bob Area 1 has object  Bhv_Custom_0x0e0007b0 with no known label.
+ Level bob Area 1 has object  Bhv_Custom_0x0e0030c0 with no known label.
+ Level bob Area 1 has object  Bhv_Custom_0x0e000950 with no known label.
+ Level bob Area 1 has object  Bhv_Custom_0x0e0006a0 with no known label.
+ Level bob Area 1 has object  Bhv_Custom_0x0e002f70 with no known label.
+ Level bob Area 1 has object  Bhv_Custom_0x0e003200 with no known label.
+ Level bob Area 1 has object  Bhv_Custom_0x130058b4 with no known label.
 
 Known methods of crashing:
 *****************************************************************************

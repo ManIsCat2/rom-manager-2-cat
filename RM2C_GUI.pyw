@@ -59,7 +59,7 @@ class RM2CGUI(QWidget):
         export_group = QGroupBox("Export Options")
         export_layout = QGridLayout()
         self.checks = {}
-        opts = ["text", "misc", "textures", "actors", "objects", "skip texture lut gbi"]
+        opts = ["text", "misc", "textures", "actors", "objects", "skip texture lut gbi", "no bank 0x19"]
         for i, opt in enumerate(opts):
             cb = QCheckBox(opt.capitalize())
             self.checks[opt] = cb
@@ -132,6 +132,8 @@ class RM2CGUI(QWidget):
             args.append("Objects=all")
         if self.checks.get("skip texture lut gbi") and self.checks["skip texture lut gbi"].isChecked():
             args.append("skipTLUT=True")
+        if self.checks.get("no bank 0x19") and self.checks["no bank 0x19"].isChecked():
+            args.append("noBank0x19=True")
 
         for key in ["Text", "Misc", "Textures"]:
             if self.checks.get(key.lower()) and self.checks[key.lower()].isChecked():

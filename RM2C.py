@@ -152,6 +152,7 @@ def LoadRawJumpPush(rom,cmd,start,script):
 	end = arg[6:10]
 	jump = arg[10:14]
 	script.banks[TcH(bank)]=[TcH(begin),TcH(end)]
+	print(f"Loaded bank 0x{TcH(bank):X}: 0x{TcH(begin):X} - 0x{TcH(end):X}")
 	script.Stack.append(start)
 	script.Top+=1
 	script.Stack.append(script.Base)
@@ -166,6 +167,7 @@ def LoadRawJump(rom,cmd,start,script):
 	end = arg[6:10]
 	jump = arg[10:14]
 	script.banks[TcH(bank)]=[TcH(begin),TcH(end)]
+	print(f"Loaded bank 0x{TcH(bank):X}: 0x{TcH(begin):X} - 0x{TcH(end):X}")
 	script.Top=script.Base
 	return script.B2P(TcH(jump))
 
@@ -233,6 +235,7 @@ def LoadData(rom,cmd,start,script):
 	begin = arg[2:6]
 	end = arg[6:10]
 	script.banks[TcH(bank)]=[TcH(begin),TcH(end)]
+	print(f"Loaded bank 0x{TcH(bank):X}: 0x{TcH(begin):X} - 0x{TcH(end):X}")
 	return start
 
 def LoadMio0(rom,cmd,start,script):
@@ -272,7 +275,10 @@ def LoadPolyGeo(rom,cmd,start,script):
 	arg=cmd[2]
 	id=arg[1:2]
 	geo=TcH(arg[2:6])
-	script.models[TcH(id)]=(geo,'geo',None,script.B2P(geo),script)
+	try:
+		script.models[TcH(id)]=(geo,'geo',None,script.B2P(geo),script)
+	except:
+		print("Couldn't load model at",hex(geo))
 	return start
 
 #yep, this is what rock bottom coding looks like
@@ -973,15 +979,18 @@ def WriteLevel(rom,s,num,areas,rootdir,m64dir,AllWaterBoxes,Onlys,romname,m64s,s
 			Wrefs = []
 			for k,Boxes in enumerate(WB):
 				wref = []
-				for j,box in enumerate(Boxes):
-					#Now a box is an array of all the data
-					#Movtex is just an s16 array, it uses macros but
-					#they don't matter
-					dat = repr(box).replace("[","{").replace("]","}")
-					dat = "static Movtex %sMovtex_%d_%d[] = "%(id,j,k) + dat+";\n\n"
-					MovTex.write(dat)
-					wref.append("%sMovtex_%d_%d"%(id,j,k))
-				Wrefs.append(wref)
+				try:
+					for j,box in enumerate(Boxes):
+						#Now a box is an array of all the data
+						#Movtex is just an s16 array, it uses macros but
+						#they don't matter
+						dat = repr(box).replace("[","{").replace("]","}")
+						dat = "static Movtex %sMovtex_%d_%d[] = "%(id,j,k) + dat+";\n\n"
+						MovTex.write(dat)
+						wref.append("%sMovtex_%d_%d"%(id,j,k))
+					Wrefs.append(wref)
+				except:
+					print("Couldn't export movtex")
 			for j,Type in enumerate(Wrefs):
 				MovTex.write("const struct MovtexQuadCollection %sMovtex_%d[] = {\n"%(id,j))
 				for k,ref in enumerate(Type):
@@ -1240,7 +1249,7 @@ def CreateSeqJSON(rom,m64s,rootdir,MusicExtend):
 		bank = UPH(rom,seqMagic+(m64[1]-MusicExtend)*2)
 		bank = UPB(rom,seqMagic+bank+1)
 		if bank>37:
-			print("sound bank error, try exporting with different rom type (e.g. editor=0)\nseq json may not work properly")
+			print(f"sound bank error, bank is {bank} for some reason, try exporting with different rom type (e.g. editor=0)\nseq json may not work properly")
 			break
 		if MusicExtend:
 			seqJSON.write("\t\"{}\": [\"{}\"],\n".format(m64[0],SoundBanks[bank]))
@@ -1290,7 +1299,7 @@ def AppendAreas(entry,script,Append):
 				break
 	return script
 
-def ExportLevel(rom,level,editor,Append,AllWaterBoxes,Onlys,romname,m64s,seqNums,MusicExtend,lvldefs,skipTLUT):
+def ExportLevel(rom,level,editor,Append,AllWaterBoxes,Onlys,romname,m64s,seqNums,MusicExtend,lvldefs,skipTLUT,noBank0x19):
 	#choose level
 	s = Script(level)
 	global Seg15Location
@@ -1317,10 +1326,11 @@ def ExportLevel(rom,level,editor,Append,AllWaterBoxes,Onlys,romname,m64s,seqNums
 			return s
 	#this tool isn't for exporting vanilla levels
 	#so I export only objects for these levels
-	if not s.banks[0x19]:
-		print(f"Level {GetlevelName(level)} is unmodified!")
-		WriteVanillaLevel(rom,s,level,s.GetNumAreas(level),rootdir,m64dir,AllWaterBoxes,[Onlys[0],1,Onlys[0]],romname,m64s,seqNums,MusicExtend)
-		return s
+	if not noBank0x19:
+		if not s.banks[0x19]:
+			print(f"Level {GetlevelName(level)} is unmodified!")
+			WriteVanillaLevel(rom,s,level,s.GetNumAreas(level),rootdir,m64dir,AllWaterBoxes,[Onlys[0],1,Onlys[0]],romname,m64s,seqNums,MusicExtend)
+			return s
 	lvldefs.write("DEFINE_LEVEL(%s,%s)\n"%(GetlevelName(level),"LEVEL_"+GetlevelName(level).upper()))
 	#now do level
 	[AllWaterBoxes,m64s,seqNums] = WriteLevel(rom,s,level,s.GetNumAreas(level),rootdir,m64dir,AllWaterBoxes,Onlys,romname,m64s,seqNums,MusicExtend,skipTLUT)
@@ -2325,7 +2335,7 @@ def findJalsInFunc(rom_bytes, ram_func, ram_to_rom):
 
 def main(levels = [], actors = [], editor = False, rom = '', Append = [], WaterOnly = 0, ObjectOnly = 0,
 MusicOnly = 0, MusicExtend = 0, Text = None, Misc = None, Textures = 0, Inherit = 0, Upscale = 0,
-Title = 0, Sound = 0, Objects = 0, skipTLUT = False):
+Title = 0, Sound = 0, Objects = 0, skipTLUT = False, noBank0x19 = False):
 	#This is not an arg you should edit really
 	TxtAmount = 170
 	romname = rom.split(".")[0]
@@ -2396,12 +2406,12 @@ Title = 0, Sound = 0, Objects = 0, skipTLUT = False):
 	Scripts = []
 	if levels=='all':
 		for k in Num2Name.keys():
-			s = ExportLevel(rom,k,editor,Append,AllWaterBoxes,Onlys,romname,m64s,seqNums,MusicExtend,lvldefs,skipTLUT)
+			s = ExportLevel(rom,k,editor,Append,AllWaterBoxes,Onlys,romname,m64s,seqNums,MusicExtend,lvldefs,skipTLUT,noBank0x19)
 			Scripts.append(s)
 			print(GetlevelName(k) + ' done')
 	else:
 		for k in levels:
-			s = ExportLevel(rom,k,editor,Append,AllWaterBoxes,Onlys,romname,m64s,seqNums,MusicExtend,lvldefs,skipTLUT)
+			s = ExportLevel(rom,k,editor,Append,AllWaterBoxes,Onlys,romname,m64s,seqNums,MusicExtend,lvldefs,skipTLUT,noBank0x19)
 			Scripts.append(s)
 			print(GetlevelName(k) + ' done')
 	lvldefs.close()

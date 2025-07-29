@@ -137,6 +137,7 @@ class Area():
             Obj.sm64_obj_bparam=args[7]
         else:
             Obj.fast64.sm64.game_object.bparams = args[7]
+            Obj.fast64.sm64.game_object.use_individual_params = False
         Obj.sm64_obj_model=args[0]
         loc = [eval(a.strip())/self.scene.blenderToSM64Scale for a in args[1:4]]
         #rotate to fit sm64s axis
@@ -156,7 +157,7 @@ class Area():
                 setattr(Obj,form.format(i),True)
         else:
             for i in range(1,7,1):
-                if mask & (1 << i):
+                if mask & (1 << (i - 1)):
                     setattr(Obj,form.format(i),True)
                 else:
                     setattr(Obj,form.format(i),False)
@@ -445,18 +446,40 @@ class Collision():
                 x+=1
                 override = bpy.context.copy()
                 override["material"] = mat
-                bpy.ops.material.update_f3d_nodes(override)
+                with bpy.context.temp_override(**override):
+                    bpy.ops.material.update_f3d_nodes()
             p.material_index=x-1
         return obj
 
 #this will hold tile properties
 class Tile():
-    pass
-
-#this will hold texture properties
-class Texture():
     def __init__(self):
-        self.tile = -1
+        self.Fmt = "RGBA"
+        self.Siz = "16"
+        self.Slow = 32
+        self.Tlow = 32
+        self.Shigh = 32
+        self.Thigh = 32
+        self.SMask = 5
+        self.TMask = 5
+        self.SShift = 0
+        self.TShift = 0
+        self.Sflags = None
+        self.Tflags = None
+
+# this will hold texture properties, dataclass props
+# are created in order for me to make comparisons in a set
+@dataclass(init=True, eq=True, unsafe_hash=True)
+class Texture:
+    Timg: tuple
+    Fmt: str
+    Siz: int
+    Width: int = 0
+    Height: int = 0
+    Pal: tuple = None
+
+    def size(self):
+        return self.Width, self.Height
 
 #This is simply a data storage class
 class Mat():
@@ -559,8 +582,8 @@ class Mat():
             tex0.S.high = self.tiles[0].Shigh
             tex0.T.high = self.tiles[0].Thigh
             
-            tex0.S.mask = eval(self.tiles[0].SMask)
-            tex0.T.mask = eval(self.tiles[0].TMask)
+            tex0.S.mask = self.tiles[0].SMask
+            tex0.T.mask = self.tiles[0].TMask
         if self.tex1:
             i = self.LoadTexture(bpy.context.scene.LevelImp.ForceNewTex,textures,path, self.tex1)
             tex1 = f3d.tex1
@@ -578,27 +601,31 @@ class Mat():
             tex1.S.high = self.tiles[1].Shigh
             tex1.T.high = self.tiles[1].Thigh
             
-            tex1.S.mask = eval(self.tiles[0].SMask)
-            tex1.T.mask = eval(self.tiles[0].TMask)
+            tex1.S.mask = self.tiles[0].SMask
+            tex1.T.mask = self.tiles[0].TMask
         #Update node values
         override = bpy.context.copy()
         override["material"] = mat
-        bpy.ops.material.update_f3d_nodes(override)
+        with bpy.context.temp_override(**override):
+            bpy.ops.material.update_f3d_nodes()
+
     def EvalFlags(self, flags):
+        if not flags:
+            return []
         GBIflags = {
-        "G_TX_NOMIRROR": None,
-        "G_TX_WRAP": None,
-        "G_TX_MIRROR": ("mirror"),
-        "G_TX_CLAMP": ("clamp"),
-        "0": None,
-        "1": ("mirror"),
-        "2": ("clamp"),
-        "3": ("clamp","mirror")
+            "G_TX_NOMIRROR": None,
+            "G_TX_WRAP": None,
+            "G_TX_MIRROR": ("mirror"),
+            "G_TX_CLAMP": ("clamp"),
+            "0": None,
+            "1": ("mirror"),
+            "2": ("clamp"),
+            "3": ("clamp", "mirror"),
         }
         x = []
         fsplit = flags.split("|")
         for f in fsplit:
-            z = GBIflags.get(f.strip(),0)
+            z = GBIflags.get(f.strip(), 0)
             if z:
                 x.append(z)
         return x
@@ -709,7 +736,7 @@ class F3d():
     #recursively parse the display list in order to return a bunch of model data
     def GetDataFromModel(self,start):
         DL = self.Gfx.get(start)
-        self.VertBuff = [0]*64 #If you're doing some fucky shit with a larger vert buffer it sucks to suck I guess
+        self.VertBuff = [0]*32 #If you're doing some fucky shit with a larger vert buffer it sucks to suck I guess
         if not DL:
             raise Exception("Could not find DL {}".format(start))
         self.Verts = []
@@ -826,20 +853,19 @@ class F3d():
                 continue
             if LsW('gsDPSetTextureImage'):
                 self.NewMat = 1
-                
-                loadtex = Texture()
-                loadtex.Timg = args[3].strip()
-                loadtex.Fmt = args[0].strip()
-                loadtex.Siz = args[1].strip()
+                Timg = args[3].strip()
+                Fmt = args[1].strip()
+                Siz = args[2].strip()
+                loadtex = Texture(Timg, Fmt, Siz)
                 self.LastMat.loadtex = loadtex
                 continue
             #catch tile size
             if LsW('gsDPSetTileSize'):
-                tile = self.LastMat.tiles[self.EvalTile(args[0].strip())]
-                tile.Slow = self.EvalImFrac(args[1].strip()) / 4
-                tile.Tlow = self.EvalImFrac(args[2].strip()) / 4
-                tile.Shigh = self.EvalImFrac(args[3].strip()) / 4
-                tile.Thigh = self.EvalImFrac(args[4].strip()) / 4
+                tile = self.LastMat.tiles[self.EvalTile(args[0])]
+                tile.Slow = self.EvalImFrac(args[1].strip())
+                tile.Tlow = self.EvalImFrac(args[2].strip())
+                tile.Shigh = self.EvalImFrac(args[3].strip())
+                tile.Thigh = self.EvalImFrac(args[4].strip())
                 continue
             if LsW('gsDPSetTile'):
                 self.NewMat = 1
@@ -847,11 +873,11 @@ class F3d():
                 tile.Fmt = args[0].strip()
                 tile.Siz = args[1].strip()
                 tile.Tflags = args[6].strip()
-                tile.TMask = args[7].strip()
-                tile.TShif = args[8].strip()
+                tile.TMask = self.EvalTile(args[7].strip())
+                tile.TShift = self.EvalTile(args[8].strip())
                 tile.Sflags = args[9].strip()
-                tile.SMask = args[10].strip()
-                tile.SShift = args[11].strip()
+                tile.SMask = self.EvalTile(args[10].strip())
+                tile.SShift = self.EvalTile(args[11].strip())
     def EvalCombiner(self,arg):
         #two args
         GBI_CC_Macros = {
@@ -928,6 +954,8 @@ class F3d():
         return GBI_CC_Macros.get(arg[0].strip(), ['TEXEL0', '0', 'SHADE', '0', 'TEXEL0', '0', 'SHADE', '0']) + \
             GBI_CC_Macros.get(arg[1].strip(), ['TEXEL0', '0', 'SHADE', '0', 'TEXEL0', '0', 'SHADE', '0'])
     def EvalImFrac(self, arg):
+        if type(arg) == int:
+            return arg
         arg2 = arg.replace("G_TEXTURE_IMAGE_FRAC", "2")
         return eval(arg2)
     def EvalTile(self, arg):
@@ -935,10 +963,14 @@ class F3d():
         Tiles = {
             "G_TX_LOADTILE": 7,
             "G_TX_RENDERTILE": 0,
+            "G_TX_NOMASK": 0,
+            "G_TX_NOLOD": 0,
         }
         t = Tiles.get(arg)
         if t == None:
-            t = int(arg)
+            arg = arg.replace("G_TX_RENDERTILE", "0")
+            print(arg, type(arg))
+            t = eval(arg)
         return t
     def MakeNewMat(self):
         if self.NewMat:
@@ -1193,12 +1225,12 @@ def CleanCollision(ColFile):
         x+=1
     return arr
 
-def WriteLevelCollision(lvl, scene, cleanup, col = None):
+def WriteLevelCollision(lvl, scene, cleanup, colname = None):
     for k,v in lvl.Areas.items():
-        if not col:
+        if not colname:
             col = v.root.users_collection[0]
         else:
-            col = CreateCol(v.root.users_collection[0], col)
+            col = CreateCol(v.root.users_collection[0], colname)
         #dat is a class that holds all the collision files data
         dat = Collision(v.ColFile, scene.blenderToSM64Scale)
         dat.GetCollision()
@@ -1329,8 +1361,10 @@ def FindLvlModels(geo, lvl, scene, path, col = None):
         GL = v.geo
         rt = v.root
         if col:
-            col = CreateCol(v.root.users_collection[0], col)
-        Geo = GeoLayout(GeoLayouts, rt, scene, "GeoRoot {} {}".format(scene.LevelImp.Level,k), rt, col = col)
+            gfxcol = CreateCol(v.root.users_collection[0], col)
+        else:
+            gfxcol = col
+        Geo = GeoLayout(GeoLayouts, rt, scene, "GeoRoot {} {}".format(scene.LevelImp.Level,k), rt, col = gfxcol)
         Geo.ParseLevelGeosStart(GL, scene)
         v.geo = Geo
     return lvl
@@ -1647,10 +1681,11 @@ Layers={
 }
 
 #from a geo layout, create all the mesh's
-def ReadGeoLayout(geo, scene, models, path, meshes, cleanup = True):
+def ReadGeoLayout(geo, scene, models, path, meshes, cleanup = True, col = None):
     if geo.models:
         rt = geo.root
-        col = geo.col
+        if not col:
+            col = geo.col
         #create a mesh for each one.
         for m in geo.models:
             name = m.model +' Data'
@@ -1737,7 +1772,7 @@ def ImportLvlVisual(geo, lvl, scene, path, model, cleanup = True, col = None):
 
 def ImportLvlCollision(model, lvl, scene, path, cleanup, col = None):
     lvl = FindCollisions(model, lvl, scene, path) #Now Each area has its collision file nicely formatted
-    WriteLevelCollision(lvl, scene, cleanup, col = col)
+    WriteLevelCollision(lvl, scene, cleanup, colname = col)
     return lvl
 
 class SM64_OT_Act_Import(Operator):
