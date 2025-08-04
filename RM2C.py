@@ -35,7 +35,7 @@ class Script():
 		self.models=[None for a in range(256)]
 		self.Currlevel=level
 		self.levels={}
-		self.levels[self.Currlevel]=[None for a in range(8)]
+		self.levels[self.Currlevel]=[None for a in range(32)]
 		self.texScrolls=False
 		self.verts = []
 		#stack is simply a stack of ptrs
@@ -172,14 +172,17 @@ def LoadRawJump(rom,cmd,start,script):
 	return script.B2P(TcH(jump))
 
 def Exit(rom,cmd,start,script):
-	script.Top=script.Base
-	script.Base=script.Stack[script.Top]
-	script.Stack.pop()
-	script.Top-=1
-	start=script.Stack[script.Top]
-	script.Stack.pop()
-	script.Top-=1
-	return start
+	try:
+		script.Top=script.Base
+		script.Base=script.Stack[script.Top]
+		script.Stack.pop()
+		script.Top-=1
+		start=script.Stack[script.Top]
+		script.Stack.pop()
+		script.Top-=1
+		return start
+	except:
+		return start
 
 def JumpRaw(rom,cmd,start,script):
 	arg=cmd[2]
@@ -481,7 +484,7 @@ def MacroObjects(rom,cmd,start,script):
 		if Preset<0x1F:
 			break
 		else:
-			A.macros.append([yRot,Preset,X,Y,Z,Bp])
+			A.macros.append([yRot*2.8125,Preset,X,Y,Z,Bp])
 		x+=10
 	return start
 
@@ -1303,7 +1306,11 @@ def ExportLevel(rom,level,editor,Append,AllWaterBoxes,Onlys,romname,m64s,seqNums
 	#choose level
 	s = Script(level)
 	global Seg15Location
-	entry = Seg15Location
+	#entry = 0x12ebb9c
+	#entry = 0x14fb41c
+	entry = 0x1c84fac
+	s.banks[0x19] = [0x14cdacc-28, 0]
+	#entry = Seg15Location
 	s = AppendAreas(entry,s,Append)
 	s.Aoffset = 0
 	s.editor = editor
@@ -1313,11 +1320,16 @@ def ExportLevel(rom,level,editor,Append,AllWaterBoxes,Onlys,romname,m64s,seqNums
 	#get all level data from script
 	x=0
 	while(True):
+		try:
 		#parse script until reaching special
-		q=PLC(rom,entry)
-		#execute special cmd
-		entry = jumps[q[0]](rom,q,q[3],s)
-		x+=1
+			q=PLC(rom,entry)
+			#execute special cmd
+			entry = jumps[q[0]](rom,q,q[3],s)
+			x+=1
+		except:
+			import traceback
+			traceback.print_exc()
+			entry = None
 		#check for end, then loop
 		if not entry:
 			break
