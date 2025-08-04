@@ -484,7 +484,7 @@ def MacroObjects(rom,cmd,start,script):
 		if Preset<0x1F:
 			break
 		else:
-			A.macros.append([yRot*2.8125,Preset,X,Y,Z,Bp])
+			A.macros.append([int(yRot*2.8125),Preset,X,Y,Z,Bp])
 		x+=10
 	return start
 
