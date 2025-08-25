@@ -1308,9 +1308,9 @@ def ExportLevel(rom,level,editor,Append,AllWaterBoxes,Onlys,romname,m64s,seqNums
 	global Seg15Location
 	#entry = 0x12ebb9c
 	#entry = 0x14fb41c
-	entry = 0x1c84fac
-	s.banks[0x19] = [0x14cdacc-28, 0]
-	#entry = Seg15Location
+	#entry = 0x24b85bc
+	#s.banks[0x19] = [entry-28, 0]
+	entry = Seg15Location
 	s = AppendAreas(entry,s,Append)
 	s.Aoffset = 0
 	s.editor = editor
